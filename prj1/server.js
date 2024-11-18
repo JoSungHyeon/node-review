@@ -1,7 +1,9 @@
 const express = require('express');
 const app = express();
-const { MongoClient, ObjectId } = require('mongodb')
+const { MongoClient, ObjectId } = require('mongodb');
+const methoddOverride = require('method-override');
 
+app.use(methoddOverride('_method'));
 app.use(express.static(__dirname + "/public"));
 app.set('view engine', 'ejs');
 app.use(express.json());
@@ -80,4 +82,32 @@ app.get('/detail/:id', async (req, res) => {
     res.status(404).send("존재하지 않는 아이템입니다.")
   }
 
+});
+
+app.get('/edit/:id', async (req, res) => {
+  try {
+    let result = await db.collection('post').findOne({ _id: new ObjectId(req.params.id)});
+    if(result == null) {
+      res.status(404).send("존재하지 않는 아이템입니다.")  
+    } else {
+      res.render('edit.ejs', {result: result});
+    }
+  } catch(e) {
+    res.status(404).send("존재하지 않는 아이템입니다.");
+  }
+});
+
+app.put('/edit', async (req, res) => {
+  try {
+    if(req.body.title == '') {
+      res.send("제목을 입력해 주세요.");
+    } else {
+      await db.collection('post').updateOne( {_id: new ObjectId(req.body.id)}, {$set: { title: req.body.title, content: req.body.content }});
+      res.redirect('/list');
+    }
+  
+  } catch(e) {
+    console.log(e);
+      res.status(500).send("서버 에러입니다.");
+  }
 });
