@@ -107,7 +107,11 @@ app.put('/edit', async (req, res) => {
     }
   
   } catch(e) {
-    console.log(e);
       res.status(500).send("서버 에러입니다.");
   }
 });
+
+app.delete('/delete', async (req, res) => {
+  await db.collection('post').deleteOne({_id: new ObjectId(req.query.docid)});
+  res.send("삭제완료");
+})

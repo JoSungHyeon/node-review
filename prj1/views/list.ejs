@@ -18,10 +18,27 @@
                   <%= 글목록[i].title %>
                 </a>
                 <a href="/edit/<%= 글목록[i]._id %>">✏️</a>
+                <span class="delete" data-id="<%= 글목록[i]._id %>">🗑️</span>
               </h4>
               <p><%= 글목록[i].content %></p>
             </div>
         <% } %>
     </div>
+
+    <script>
+      let deleteBtn = document.querySelectorAll(".delete");
+
+      deleteBtn.forEach((item, i) => {
+        item.addEventListener('click', function(e) {
+          fetch(`/delete?docid=${e.target.dataset.id}`, {
+            method: 'DELETE',
+          })
+          .then((r) => r.text())
+          .then((r) => {
+            e.target.parentElement.parentElement.style.display = 'none'
+          })
+        })
+      });
+    </script>
   </body>
 </html>
