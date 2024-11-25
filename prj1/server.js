@@ -1,15 +1,34 @@
+// 기본 셋팅
 const express = require('express');
 const app = express();
-const { MongoClient, ObjectId } = require('mongodb');
-const methoddOverride = require('method-override');
+const { MongoClient, ObjectId } = require('mongodb'); // 몽고디비
+const methoddOverride = require('method-override'); // PUT메소드같은거 쓰는거
 
+// 사용하겠다~~
 app.use(methoddOverride('_method'));
 app.use(express.static(__dirname + "/public"));
 app.set('view engine', 'ejs');
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 
+// 회원가입시 필요한거
+const session = require('express-session');
+const passport = require('passport');
+const LocalStrategy = require('passport-local');
+app.use(passport.initialize())
+app.use(session({
+    secret: '암호화에 쓸 비번',
+    resave : false,
+    saveUninitialized : false,
+    cookie: { maxAge: 60 * 60 * 1000 }
 
+}));
+
+app.use(passport.session());
+
+
+
+// 몽고디비 불러오기
 let db
 const url = 'mongodb+srv://izzang1230i:qwer1234@cluster0.gxwas.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'
 new MongoClient(url).connect().then((client)=>{
@@ -24,36 +43,43 @@ new MongoClient(url).connect().then((client)=>{
 
 
 
-
+// 홈
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + "/index.html")
+    res.sendFile(__dirname + "/index.ejs")
 });
 
+// 페이지 이동(파일 보여주기)
 app.get('/about', (req, res) => {
     res.sendFile(__dirname + "/myinfo.html")
 });
 
+// 페이지 이동(직접 띄우기)
 app.get('/news', (req, res) => {
     res.send("오늘 비옴");
 });
 
+// 페이지 이동(직접 띄우기)
 app.get('/shop', (req, res) => {
     res.send("쇼핑페이지 입니다.");
 });
 
+// 페이지 이동(ejs파일로 데이터 이동하고 보여주기) 
 app.get('/list', async (req, res) => {
     let result = await db.collection('post').find().toArray();
     res.render('list.ejs', { 글목록: result });
 });
 
+// 페이지 이동(ejs파일로 현재날짜 보여주기)
 app.get('/time', (req, res) => {
   res.render('time.ejs', { data: new Date() })
 });
 
+// 페이지 이동(글작성ejs)
 app.get('/write', (req, res) => {
   res.render('write.ejs')
 });
 
+// 글작성ejs에서 post방식으로 데이터베이스에 데이터 추가(예외처리)
 app.post('/add', async (req, res) => {
   try {
     if(req.body.title == '') {
@@ -66,11 +92,10 @@ app.post('/add', async (req, res) => {
       console.log(e);
       res.status(500).send("서버 에러입니다.");
   }
-
 });
 
+// 상세보기 페이지 이동 /:id <<이건 파라미터값임 (예외처리)
 app.get('/detail/:id', async (req, res) => {
-
   try {
     let result = await db.collection('post').findOne({ _id: new ObjectId(req.params.id)});
     if(result == null) {
@@ -84,6 +109,7 @@ app.get('/detail/:id', async (req, res) => {
 
 });
 
+// 수정하기 페이지 이동 /:id <<이건 파라미터값임 (예외처리)
 app.get('/edit/:id', async (req, res) => {
   try {
     let result = await db.collection('post').findOne({ _id: new ObjectId(req.params.id)});
@@ -97,6 +123,8 @@ app.get('/edit/:id', async (req, res) => {
   }
 });
 
+// 수정하기ejs에서 methoddOverride을 활용해
+// put 방식으로 데이터베이스에 데이터 수정 (예외처리)
 app.put('/edit', async (req, res) => {
   try {
     if(req.body.title == '') {
@@ -111,7 +139,68 @@ app.put('/edit', async (req, res) => {
   }
 });
 
+// 삭제하기 기능
 app.delete('/delete', async (req, res) => {
   await db.collection('post').deleteOne({_id: new ObjectId(req.query.docid)});
   res.send("삭제완료");
+});
+
+// 페이지(페이지네이션) 구분하기 skip은 몇개 건너뛸지, limit은 몇개 보여줄지
+// 속도가 조금 느림
+// 1에서 3이상으로 바로 이동 가능
+app.get('/list/:id', async (req, res) => {
+  let result = await db.collection('post').find().skip((req.params.id-1) * 5).limit(5).toArray();
+  res.render('list.ejs', { 글목록: result });
+});
+
+// 페이지(이전/다음) 구분하기 skip은 몇개 건너뛸지, limit은 몇개 보여줄지
+// 속도 빠름
+// 1에서 3이상으로 바로 이동 불가능
+// app.get('/list/next/:id', async (req, res) => {
+//   let result = await db.collection('post').find({_id: {$gt : new ObjectId(req.params.id)}}).limit(5).toArray();
+//   res.render('list.ejs', { 글목록: result });
+// });
+
+// 회원로그인페이지
+passport.use(new LocalStrategy(async (입력한아이디, 입력한비번, cb) => {
+  let result = await db.collection('user').findOne({ username : 입력한아이디})
+  if (!result) {
+    return cb(null, false, { message: '아이디 DB에 없음' })
+  }
+  if (result.password == 입력한비번) {
+    return cb(null, result)
+  } else {
+    return cb(null, false, { message: '비번불일치' });
+  }
+}))
+
+passport.serializeUser((user, done) => {
+  console.log(user)
+  process.nextTick(() => {
+    done(null, { id: user._id, username: user.username })
+  })
+})
+
+passport.deserializeUser(async (user, done) => {
+  let result = await db.collection('user').findOne({_id: new ObjectId(user.id)})
+  delete result.password
+  process.nextTick(() => {
+    done(null, result)
+  })
+})
+
+app.get('/login', async (req, res) => {
+  console.log(req.user)
+  res.render('login.ejs')
+})
+
+app.post('/login', async (req, res, next) => {
+  passport.authenticate('local', (error, user, info) => {
+    if(error) return res.status(500).json(error)
+    if(!user) return res.status(401).json(info.message)
+    req.logIn(user, (err) => {
+      if(err) return next(err)
+      res.redirect('/')
+    })
+  })(req, res, next)
 })
