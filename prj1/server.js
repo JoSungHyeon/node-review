@@ -1,6 +1,7 @@
 // 기본 셋팅
 const express = require('express');
 const app = express();
+const cookieParser = require('cookie-parser'); // 쿠키
 const { MongoClient, ObjectId } = require('mongodb'); // 몽고디비
 const methoddOverride = require('method-override'); // PUT메소드같은거 쓰는거
 
@@ -10,6 +11,7 @@ app.use(express.static(__dirname + "/public"));
 app.set('view engine', 'ejs');
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
+app.use(cookieParser());
 
 // 회원가입시 필요한거
 const session = require('express-session');
@@ -45,7 +47,8 @@ new MongoClient(url).connect().then((client)=>{
 
 // 홈
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + "/index.ejs")
+  const isLoggedIn = req.cookies['connect.sid'] ? true : false;
+  res.render('index.ejs', { login: isLoggedIn });
 });
 
 // 페이지 이동(파일 보여주기)
@@ -175,7 +178,7 @@ passport.use(new LocalStrategy(async (입력한아이디, 입력한비번, cb) =
 }))
 
 passport.serializeUser((user, done) => {
-  console.log(user)
+  // console.log(user)
   process.nextTick(() => {
     done(null, { id: user._id, username: user.username })
   })
@@ -203,4 +206,8 @@ app.post('/login', async (req, res, next) => {
       res.redirect('/')
     })
   })(req, res, next)
+})
+
+app.get('/mypage', (req, res) => {
+  res.render('mypage.ejs', {result: req.user})
 })
