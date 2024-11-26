@@ -8,7 +8,12 @@
 </head>
 <body class="grey-bg">
 
-    <%- include('nav.ejs'), {age: 20} %>
+  <% if(login) { %>
+    <%- include('login_nav.ejs') %>
+    <a href="/write">글작성하기</a>
+  <% } else { %>
+      <%- include('nav.ejs') %>
+  <% } %>
 
     <div class="white-bg">
         <% for(let i=0; i<글목록.length; i++) { %>

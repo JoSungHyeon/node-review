@@ -4,6 +4,7 @@ const app = express();
 const cookieParser = require('cookie-parser'); // 쿠키
 const { MongoClient, ObjectId } = require('mongodb'); // 몽고디비
 const methoddOverride = require('method-override'); // PUT메소드같은거 쓰는거
+const bcrypt = require('bcrypt');
 
 // 사용하겠다~~
 app.use(methoddOverride('_method'));
@@ -17,12 +18,17 @@ app.use(cookieParser());
 const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
+const MongoStore = require('connect-mongo'); // 세션 몽고디비에 저장하기
 app.use(passport.initialize())
 app.use(session({
     secret: '암호화에 쓸 비번',
     resave : false,
     saveUninitialized : false,
-    cookie: { maxAge: 60 * 60 * 1000 }
+    cookie: { maxAge: 60 * 60 * 1000 },
+    store: MongoStore.create({
+      mongoUrl: 'mongodb+srv://izzang1230i:qwer1234@cluster0.gxwas.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
+      dbName: 'myProject1'
+    })
 
 }));
 
@@ -68,8 +74,9 @@ app.get('/shop', (req, res) => {
 
 // 페이지 이동(ejs파일로 데이터 이동하고 보여주기) 
 app.get('/list', async (req, res) => {
+    const isLoggedIn = req.cookies['connect.sid'] ? true : false;
     let result = await db.collection('post').find().toArray();
-    res.render('list.ejs', { 글목록: result });
+    res.render('list.ejs', { 글목록: result, login: isLoggedIn });
 });
 
 // 페이지 이동(ejs파일로 현재날짜 보여주기)
@@ -89,7 +96,7 @@ app.post('/add', async (req, res) => {
       res.send("제목을 입력해 주세요.");
     } else {
       await db.collection('post').insertOne({title: req.body.title, content: req.body.content});
-      res.redirect('/list');
+      res.redirect('/list/1');
     }
   } catch(e) {
       console.log(e);
@@ -152,8 +159,9 @@ app.delete('/delete', async (req, res) => {
 // 속도가 조금 느림
 // 1에서 3이상으로 바로 이동 가능
 app.get('/list/:id', async (req, res) => {
+  const isLoggedIn = req.cookies['connect.sid'] ? true : false;
   let result = await db.collection('post').find().skip((req.params.id-1) * 5).limit(5).toArray();
-  res.render('list.ejs', { 글목록: result });
+  res.render('list.ejs', { 글목록: result, login: isLoggedIn });
 });
 
 // 페이지(이전/다음) 구분하기 skip은 몇개 건너뛸지, limit은 몇개 보여줄지
@@ -170,7 +178,8 @@ passport.use(new LocalStrategy(async (입력한아이디, 입력한비번, cb) =
   if (!result) {
     return cb(null, false, { message: '아이디 DB에 없음' })
   }
-  if (result.password == 입력한비번) {
+
+  if (await bcrypt.compare(입력한비번, result.password)) {
     return cb(null, result)
   } else {
     return cb(null, false, { message: '비번불일치' });
@@ -193,7 +202,6 @@ passport.deserializeUser(async (user, done) => {
 })
 
 app.get('/login', async (req, res) => {
-  console.log(req.user)
   res.render('login.ejs')
 })
 
@@ -202,6 +210,7 @@ app.post('/login', async (req, res, next) => {
     if(error) return res.status(500).json(error)
     if(!user) return res.status(401).json(info.message)
     req.logIn(user, (err) => {
+      console.log(req.user)
       if(err) return next(err)
       res.redirect('/')
     })
@@ -210,4 +219,38 @@ app.post('/login', async (req, res, next) => {
 
 app.get('/mypage', (req, res) => {
   res.render('mypage.ejs', {result: req.user})
+})
+
+// 가입하기 페이지 이동
+app.get('/register', (req, res) => {
+  res.render('register.ejs')
+})
+
+// 암호 해싱해야함
+app.post('/register', async (req, res) => {
+  let hash = await bcrypt.hash(req.body.password, 10);
+
+  let result = await db.collection('user').findOne({username: req.body.username});
+  console.log(result)
+
+  try {
+    if(result == null) {
+      if(req.body.password == req.body.confirm) {
+        await db.collection('user').insertOne({
+          username: req.body.username,
+          password: hash
+        })
+        console.log(req.user)
+        res.redirect('/')
+      } else {
+        res.status(401).send("비밀번호를 확인해 주세요.");
+      }
+    } else {
+      res.status(401).send("중복된 아이디입니다.");
+    }
+  } catch(e) {
+    res.status(500).send("서버 에러입니다.");
+  }
+  
+
 })

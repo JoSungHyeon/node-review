@@ -10,8 +10,10 @@
 <body>
     <% if(login) { %>
         <%- include('login_nav.ejs') %>
+        <a href="/write">글작성하기</a>
     <% } else { %>
         <%- include('nav.ejs') %>
+        
     <% } %>
 </body>
 </html>
